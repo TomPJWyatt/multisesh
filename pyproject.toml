@@ -29,9 +29,9 @@ dependencies = [
     "fsspec",
     "ipywidgets",
     "ipympl",
-    "basicpy==1.1",
-    "jax==0.4.13",
-    "jaxlib==0.4.13",
+#    "basicpy==1.1", # 25/8/26 removing this to get everything working and up to date
+#    "jax==0.4.13", # 25/8/26 removing this to get everything working and up to date
+#    "jaxlib==0.4.13", # 25/8/26 removing this to get everything working and up to date
     "btrack==0.6.5",
     "cellpose[gui]==3.1.1",
     "pandas",

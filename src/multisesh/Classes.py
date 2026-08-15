@@ -12,10 +12,10 @@ from itertools import product
 import pickle
 from skimage import io, filters, exposure, measure, feature
 from skimage.transform import downscale_local_mean,resize,rescale
-from scipy.ndimage import gaussian_filter,zoom,label
+from scipy.ndimage import gaussian_filter,zoom,label,distance_transform_edt
 from skimage.color import label2rgb
 from skimage.morphology import disk, dilation, erosion,remove_small_objects,binary_opening
-from skimage.segmentation import clear_border
+from skimage.segmentation import clear_border,watershed
 from scipy.ndimage.filters import generic_filter
 from sklearn.cluster import DBSCAN
 import cv2 as cv
@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import hsv_to_rgb
 import ipywidgets as widgets
 from IPython.display import display
-from basicpy import BaSiC
+#from basicpy import BaSiC # 25/8/26 removing this to get everything working and up to date
 from aicsimageio import AICSImage
 import btrack
 
@@ -1693,7 +1693,7 @@ class XFold:
                             erodeMask=erodeMask,
                             blur_sig=blur_sig,
                             clip_sig=clip_sig,  
-                            watershed_label=watershed_label,
+                            watershed_label=watershed_seg,
                             addSeg2TData='auto',
                             closing=closing,
                             removeSmall=removeSmall,
@@ -1814,6 +1814,7 @@ class XFold:
     def TrackSegmentations(self,
                            out_name,
                            sessions=None,
+                           saveMasks=False,
                            T='all',
                            F='all',
                            M='all',
@@ -4095,7 +4096,8 @@ class TFile:
             name the channel you want with a 'str'.
         """
         
-        usersel = self.parseTFMZC(T,F,M,Z,C)
+        userSel = self.parseTFMZC(T,F,M,Z,C)
+        dimsU = tuple([len(x) for x in userSel]+[self.NY]+[self.NX])
 
         NQ = [self.NT,self.NF,self.NM,self.NZ,self.NC]
         for Q,n in zip(userSel,NQ):
@@ -4841,64 +4843,64 @@ class TData:
 
         return filtDic
 
+# TW 15/8/26 removing BasicPy stuff for now to get things working with imports and package updates
+    # def makeBaSiCFilters_py(self,chan='All',darkfield=True,newsize=128):
+    #     """
+    #     This makes filters for homgenisation using the BaSiC algorithm.
 
-    def makeBaSiCFilters_py(self,chan='All',darkfield=True,newsize=128):
-        """
-        This makes filters for homgenisation using the BaSiC algorithm.
+    #     Parameters
+    #     ----------
+    #     chan : str or list of str
+    #         The channel names to calculate filters for. 'All' for all channels
+    #         in TData. Can but ints providing positions within self.chan too.
+    #     darkfield : bool
+    #         Whether to calculate the darkfield filter or not.
+    #     newsize : int
+    #         A size that they resize down to, I guess to save processing time.
+    #         They always use 128 but let's allow it as a variable.
+    #     Returns
+    #     -------
+    #     filtDic : dict
+    #         Keys are channel names (str), values are tuple of numpy arrays.
+    #         The first is the flatfield filter the second is the darkfield.
 
-        Parameters
-        ----------
-        chan : str or list of str
-            The channel names to calculate filters for. 'All' for all channels
-            in TData. Can but ints providing positions within self.chan too.
-        darkfield : bool
-            Whether to calculate the darkfield filter or not.
-        newsize : int
-            A size that they resize down to, I guess to save processing time.
-            They always use 128 but let's allow it as a variable.
-        Returns
-        -------
-        filtDic : dict
-            Keys are channel names (str), values are tuple of numpy arrays.
-            The first is the flatfield filter the second is the darkfield.
+    #     Notes
+    #     -----
+    #     It uses the whole TData (from a specific channel) to make the filter.
+    #     So if you want unique filters per time point or field then you have to
+    #     make each TData with just one tp/field accordingly. Similarly you
+    #     should z-project first if you are going to z-project.
 
-        Notes
-        -----
-        It uses the whole TData (from a specific channel) to make the filter.
-        So if you want unique filters per time point or field then you have to
-        make each TData with just one tp/field accordingly. Similarly you
-        should z-project first if you are going to z-project.
+    #     I have just combined 2 parts of their
 
-        I have just combined 2 parts of their
+    #     """
 
-        """
+    #     if np.prod(np.array(self.Shape))==0:
+    #         return
 
-        if np.prod(np.array(self.Shape))==0:
-            return
+    #     if isinstance(chan,str) and chan!='All':
+    #         chan = [chan]
+    #     if chan=='All':
+    #         chan = [i for i in range(len(self.Chan))]
+    #     elif isinstance(chan,list):
+    #         if all([isinstance(c,str) for c in chan]):
+    #             chan = [self.Chan.index(c) for c in chan]
+    #         elif not all([isinstance(c,int) for c in chan]):
+    #             raise Exception('chan not in recognisable format.')
+    #     else:
+    #         raise Exception('chan not in recognisable format.')
 
-        if isinstance(chan,str) and chan!='All':
-            chan = [chan]
-        if chan=='All':
-            chan = [i for i in range(len(self.Chan))]
-        elif isinstance(chan,list):
-            if all([isinstance(c,str) for c in chan]):
-                chan = [self.Chan.index(c) for c in chan]
-            elif not all([isinstance(c,int) for c in chan]):
-                raise Exception('chan not in recognisable format.')
-        else:
-            raise Exception('chan not in recognisable format.')
-
-        filtDic = {}
-        NIM = self.NF*self.NT*self.NM*self.NZ
-        for c in chan:
-            filtDic[self.Chan[c]] = {}
-            fData = self.data.copy().reshape((NIM,self.NY,self.NX))
-            fData = np.moveaxis(fData,0,2).astype('uint16')
-            fData = cv2.resize(fData,(128,128),interpolation=cv2.INTER_LANCZOS4)
-            ff,df = pybasic.basic(fData,segmentation=None,darkfield=True)
-            filtDic[self.Chan[c]]['FF'] = ff
-            filtDic[self.Chan[c]]['DF'] = df
-            del fData,ff,df
+    #     filtDic = {}
+    #     NIM = self.NF*self.NT*self.NM*self.NZ
+    #     for c in chan:
+    #         filtDic[self.Chan[c]] = {}
+    #         fData = self.data.copy().reshape((NIM,self.NY,self.NX))
+    #         fData = np.moveaxis(fData,0,2).astype('uint16')
+    #         fData = cv.resize(fData,(128,128),interpolation=cv.INTER_LANCZOS4)
+    #         ff,df = pybasic.basic(fData,segmentation=None,darkfield=True)
+    #         filtDic[self.Chan[c]]['FF'] = ff
+    #         filtDic[self.Chan[c]]['DF'] = df
+    #         del fData,ff,df
 
 
     def Homogenise(self,HFiles={},chan='All',verbose=False):
@@ -5011,25 +5013,25 @@ class TData:
             print('homogenised')
 
             
-    
-    def BaSiCHomogenise(self):
+    # TW 15/8/26 removing BasicPy stuff for now to get things working with imports and package updates 
+    # def BaSiCHomogenise(self):
         
-        """
-        This corrects for inhomogenous field of view using BaSiCPy.
+    #     """
+    #     This corrects for inhomogenous field of view using BaSiCPy.
 
-        Note how it calculates the filters using all images of each channel 
-        - i.e. currently there isn't much control and you might want to add 
-        control if it is slow for big tdatas.
-        """
+    #     Note how it calculates the filters using all images of each channel 
+    #     - i.e. currently there isn't much control and you might want to add 
+    #     control if it is slow for big tdatas.
+    #     """
         
-        for c in range(self.NC):
-            dd = self.NT*self.NF*self.NM*self.NZ
-            _data = self.data[:,:,:,:,c].reshape((dd,self.NY,self.NX))
-            basic = BaSiC(get_darkfield=True, smoothness_flatfield=1)
-            basic.fit(_data)
-            self.data[:,:,:,:,c] = basic.transform(self.data[:,:,:,:,c])
+    #     for c in range(self.NC):
+    #         dd = self.NT*self.NF*self.NM*self.NZ
+    #         _data = self.data[:,:,:,:,c].reshape((dd,self.NY,self.NX))
+    #         basic = BaSiC(get_darkfield=True, smoothness_flatfield=1)
+    #         basic.fit(_data)
+    #         self.data[:,:,:,:,c] = basic.transform(self.data[:,:,:,:,c])
         
-        return
+    #     return
     
     
 
@@ -6362,7 +6364,7 @@ class TData:
         """
         y0,x0,yf,xf = [x for p in al for x in p]
         if not endLen:
-            endLen = math.sqrt((xf-x0)**2 + (yf-f0)**2)
+            endLen = math.sqrt((xf-x0)**2 + (yf-y0)**2)
         ang = math.atan((yf-y0)/(xf-x0))
         ang = (ang/math.pi)*180
 
@@ -7044,7 +7046,7 @@ class TData:
             Shape is (NT,NM,NZ,NC,ny,nx) where ny,nx are the number of
             measures taken along y and x. Each element corresponds to a field
             in self.
-        ypos,xpos : lists of lists.
+        apos,rpos : lists of lists.
             Each inner list corresponds to a field in self. Then these are the
             positions of the measures in dataList within the gradient window.
         """
@@ -7057,8 +7059,8 @@ class TData:
         # one element for each field since they may have differnt dimensions
         if returnData:
             outList = []
-            xpos = []
-            ypos = []
+            apos = []
+            rpos = []
             
         if not masks in self.ParentXFold.RingDic.keys():
             self.ParentXFold.RingDic[masks] = {}
@@ -7201,21 +7203,22 @@ class TData:
                 _csv = np.hstack((rlab.reshape((NR+1,1)),_csv))
                 if returnData:
                     outData[t,m,z,c] = _csv[1:,1:]
-                
-                # save csv
-                if outDir:
-                    outName ='T'+str(self.Times[FID][t])+'min_M'+str(m)+'_Z'
-                    outName += str(z)+'_C'+self.Chan[c]+'.csv'
-                    outF = defs.FieldDir + FID
-                    outPath1 = os.path.join(self.ParentXFold.XPathP,outDir,outF)
-                    if not os.path.exists(outPath1):
-                        os.makedirs(outPath1)
-                    outPath = os.path.join(outPath1,outName)
-                    if not overwrite:
-                        assert not os.path.exists(outPath),EM.ae5
-                    with open(outPath,'w',newline='') as file:
-                        writer = csv.writer(file)
-                        writer.writerows(_csv)
+
+                # TW 15/8/26 removing because it's rubbist, shouldn't use csv package here
+                # # save csv
+                # if outDir:
+                #     outName ='T'+str(self.Times[FID][t])+'min_M'+str(m)+'_Z'
+                #     outName += str(z)+'_C'+self.Chan[c]+'.csv'
+                #     outF = defs.FieldDir + FID
+                #     outPath1 = os.path.join(self.ParentXFold.XPathP,outDir,outF)
+                #     if not os.path.exists(outPath1):
+                #         os.makedirs(outPath1)
+                #     outPath = os.path.join(outPath1,outName)
+                #     if not overwrite:
+                #         assert not os.path.exists(outPath),EM.ae5
+                #     with open(outPath,'w',newline='') as file:
+                #         writer = csv.writer(file)
+                #         writer.writerows(_csv)
 
                 if returnData:
                     outList.append(outData)
@@ -7436,7 +7439,7 @@ class TData:
                 if watershed_label:
                     foot_size = int(self.um_2_pixels(watershed_label))
                     dist_seg = distance_transform_edt(seg)
-                    coords_seg = peak_local_max(dist_seg,
+                    coords_seg = feature.peak_local_max(dist_seg,
                                                 footprint=np.ones((foot_size,
                                                                    foot_size)),
                                                 labels=seg)
@@ -9811,7 +9814,7 @@ def AutoLevel(data,minP=2,maxP=98,overWrite=False,returnTDatas=True):
         pass
 
     if returnTDatas:
-        return outTDatas
+        return data
 
 
 def PlotDataFrame(df,col_names,seg_col_name=False,measure_col_names=False):
