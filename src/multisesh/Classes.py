@@ -42,7 +42,7 @@ from .exceptions import UnknownTifMeta,ChannelException
 from . import definitions as defs
 from . import findMeta as fMeta
 from . import errorMessages as EM
-from .macros import macro1,macro2,macro3,macro4
+#from .macros import macro1,macro2,macro3,macro4 #TW 15/8/26 these macros for basicpy have dissapeared somewhere... think they're old but otherewise will need to find/rewrite... maybe they're in gradient project folder?
 
 
 class XFold:
@@ -4744,104 +4744,104 @@ class TData:
             
         print('Warning: we havent updated self.newSeshNQ in this function yet so saving and reloading might have troubles.')
 
+# TW 15/8/26 removing BasicPy stuff for now to get things working with imports and package updates
+    # def makeBaSiCFilters(self,ij,chan='All',darkfield=True,blur=False):
+    #     """
+    #     This makes filters for homgenisation using the imagej BaSiC plugin.
 
-    def makeBaSiCFilters(self,ij,chan='All',darkfield=True,blur=False):
-        """
-        This makes filters for homgenisation using the imagej BaSiC plugin.
+    #     Parameters
+    #     ----------
+    #     ij : imagej gateway
+    #         Use pyimagej to make a gateway to an imagej app that has BaSiC
+    #         installed.
+    #     chan : str or list of str
+    #         The channel names to calculate filters for. 'All' for all channels
+    #         in TData. Can but ints providing positions within self.chan too.
+    #     darkfield : bool
+    #         Whether to calculate the darkfield filter or not.
+    #     blur : bool or int
+    #         Whether to apply gaussian blur to the calculated filter. If int
+    #         then this is the size of the gaussian kernel.
 
-        Parameters
-        ----------
-        ij : imagej gateway
-            Use pyimagej to make a gateway to an imagej app that has BaSiC
-            installed.
-        chan : str or list of str
-            The channel names to calculate filters for. 'All' for all channels
-            in TData. Can but ints providing positions within self.chan too.
-        darkfield : bool
-            Whether to calculate the darkfield filter or not.
-        blur : bool or int
-            Whether to apply gaussian blur to the calculated filter. If int
-            then this is the size of the gaussian kernel.
+    #     Returns
+    #     -------
+    #     filtDic : dict
+    #         Keys are channel names (str), values are tuple of numpy arrays.
+    #         The first is the flatfield filter the second is the darkfield.
 
-        Returns
-        -------
-        filtDic : dict
-            Keys are channel names (str), values are tuple of numpy arrays.
-            The first is the flatfield filter the second is the darkfield.
+    #     Notes
+    #     -----
+    #     It uses the whole TData (from a specific channel) to make the filter.
+    #     So if you want unique filters per time point or field then you have to
+    #     make each TData with just one tp/field accordingly. Similarly you
+    #     should z-project first if you are going to z-project.
+    #     """
 
-        Notes
-        -----
-        It uses the whole TData (from a specific channel) to make the filter.
-        So if you want unique filters per time point or field then you have to
-        make each TData with just one tp/field accordingly. Similarly you
-        should z-project first if you are going to z-project.
-        """
+    #     if np.prod(np.array(self.Shape))==0:
+    #         return
 
-        if np.prod(np.array(self.Shape))==0:
-            return
-
-        if isinstance(chan,str) and chan!='All':
-            chan = [chan]
-        if chan=='All':
-            chan = [i for i in range(len(self.Chan))]
-        elif isinstance(chan,list):
-            if all([isinstance(c,str) for c in chan]):
-                chan = [self.Chan.index(c) for c in chan]
-            elif not all([isinstance(c,int) for c in chan]):
-                raise Exception('chan not in recognisable format.')
-        else:
-            raise Exception('chan not in recognisable format.')
+    #     if isinstance(chan,str) and chan!='All':
+    #         chan = [chan]
+    #     if chan=='All':
+    #         chan = [i for i in range(len(self.Chan))]
+    #     elif isinstance(chan,list):
+    #         if all([isinstance(c,str) for c in chan]):
+    #             chan = [self.Chan.index(c) for c in chan]
+    #         elif not all([isinstance(c,int) for c in chan]):
+    #             raise Exception('chan not in recognisable format.')
+    #     else:
+    #         raise Exception('chan not in recognisable format.')
             
-        # you can't do BaSiC with one image
-        if not self.NM*self.NT*self.NZ*self.NF > 1:
-            raise Exception('need more than 1 im / chan to make BaSiC filter')
+    #     # you can't do BaSiC with one image
+    #     if not self.NM*self.NT*self.NZ*self.NF > 1:
+    #         raise Exception('need more than 1 im / chan to make BaSiC filter')
 
-        filtDic = {}
+    #     filtDic = {}
 
-        for c in chan:
-            filtDic[self.Chan[c]] = {}
-            im = self.data[:,:,:,:,c].copy()
-            d = (self.NT*self.NF*self.NM*self.NZ,self.NY,self.NX)
-            im = im.reshape(d)
-            im = ij.py.to_java(im)
-            im = ij.op().transform().flatIterableView(im)
-            ij.ui().show(im)
-            WindowManager = jimport('ij.WindowManager')
-            current_image = WindowManager.getCurrentImage()
-            ij.py.run_macro(macro1)
-            s_m = '[Estimate both flat-field and dark-field]'
-            args = {'processing_stack': 'active-1',
-                    'flat-field': 'None',
-                    'dark-field': 'None',
-                    'shading_estimation': '[Estimate shading profiles]',
-                    'shading_model': s_m,
-                    'setting_regularisationparametes': 'Automatic',
-                    'temporal_drift': '[Ignore]',
-                    'correction_options': '[Compute shading only]',
-                    'lambda_flat': 0.5,
-                    'lambda_dark': 0.5}
-            ij.py.run_plugin('BaSiC ', args)
-            ij.py.run_macro(macro2)
-            current_image = WindowManager.getCurrentImage()
-            flat_field_ij = ij.py.from_java(current_image)
-            flat_field = flat_field_ij.data
-            ij.py.run_macro(macro3)
-            current_image = WindowManager.getCurrentImage()
-            dark_field_ij = ij.py.from_java(current_image)
-            dark_field = dark_field_ij.data
-            ij.py.run_macro(macro4)
-            filtDic[self.Chan[c]]['FF'] = flat_field
-            filtDic[self.Chan[c]]['DF'] = dark_field
-            del im,flat_field,dark_field
+    #     for c in chan:
+    #         filtDic[self.Chan[c]] = {}
+    #         im = self.data[:,:,:,:,c].copy()
+    #         d = (self.NT*self.NF*self.NM*self.NZ,self.NY,self.NX)
+    #         im = im.reshape(d)
+    #         im = ij.py.to_java(im)
+    #         im = ij.op().transform().flatIterableView(im)
+    #         ij.ui().show(im)
+    #         WindowManager = jimport('ij.WindowManager')
+    #         current_image = WindowManager.getCurrentImage()
+    #         ij.py.run_macro(macro1)
+    #         s_m = '[Estimate both flat-field and dark-field]'
+    #         args = {'processing_stack': 'active-1',
+    #                 'flat-field': 'None',
+    #                 'dark-field': 'None',
+    #                 'shading_estimation': '[Estimate shading profiles]',
+    #                 'shading_model': s_m,
+    #                 'setting_regularisationparametes': 'Automatic',
+    #                 'temporal_drift': '[Ignore]',
+    #                 'correction_options': '[Compute shading only]',
+    #                 'lambda_flat': 0.5,
+    #                 'lambda_dark': 0.5}
+    #         ij.py.run_plugin('BaSiC ', args)
+    #         ij.py.run_macro(macro2)
+    #         current_image = WindowManager.getCurrentImage()
+    #         flat_field_ij = ij.py.from_java(current_image)
+    #         flat_field = flat_field_ij.data
+    #         ij.py.run_macro(macro3)
+    #         current_image = WindowManager.getCurrentImage()
+    #         dark_field_ij = ij.py.from_java(current_image)
+    #         dark_field = dark_field_ij.data
+    #         ij.py.run_macro(macro4)
+    #         filtDic[self.Chan[c]]['FF'] = flat_field
+    #         filtDic[self.Chan[c]]['DF'] = dark_field
+    #         del im,flat_field,dark_field
 
-        if blur:
-            assert isinstance(blur,int),'blur must be an int'
-            for k,v in filtDic.items():
-                for k2,v2 in v.items():
-                    filtDic[k][k2] = cv.GaussianBlur(v2,(0,0),blur)
+    #     if blur:
+    #         assert isinstance(blur,int),'blur must be an int'
+    #         for k,v in filtDic.items():
+    #             for k2,v2 in v.items():
+    #                 filtDic[k][k2] = cv.GaussianBlur(v2,(0,0),blur)
 
 
-        return filtDic
+    #     return filtDic
 
 # TW 15/8/26 removing BasicPy stuff for now to get things working with imports and package updates
     # def makeBaSiCFilters_py(self,chan='All',darkfield=True,newsize=128):

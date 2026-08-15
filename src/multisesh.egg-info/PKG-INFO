@@ -20,11 +20,11 @@ Requires-Dist: readlif
 Requires-Dist: fsspec
 Requires-Dist: ipywidgets
 Requires-Dist: ipympl
-Requires-Dist: basicpy==1.1
 Requires-Dist: btrack==0.6.5
 Requires-Dist: cellpose[gui]==3.1.1
 Requires-Dist: pandas
 Requires-Dist: pydantic==1.10.10
+Requires-Dist: scikit-learn
 
 # multisesh
 

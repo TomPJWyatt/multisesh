@@ -49,9 +49,15 @@ def madeBy(tp):
     
     Returns 
     --------
+    Leica
+    Zeiss
+    Nikon
+    multisesh
+    multisesh_compressed
     Incucyte
     Andor
     Micromanager
+    ImageExpress
     Exception (if not one of the above)
     """
 
@@ -74,12 +80,15 @@ def madeBy(tp):
             
             # checking if it is made by incucyte
             for tag in tif.pages[0].tags:
-                if 'Incucyte' in str(tag):
+                tag_s = str(tag)
+                if 'Incucyte' in tag_s:
                     return 'Incucyte'
-                if 'PerkinElmer' in str(tag):
+                if 'PerkinElmer' in tag_s:
                     return 'Opera'
-                if 'Revvity' in str(tag):
-                    return 'Opera'                    
+                if 'Revvity' in tag_s:
+                    return 'Opera'   
+                if 'MetaSeries' in tag_s:
+                    return 'ImageXpress'               
             if I and 'tdata_meta_data' in I.keys():
                 return 'multisesh'
             if I:
@@ -166,16 +175,21 @@ def allSeshMeta(tp,tps,customTags={},silenceWarnings=False):
                 # this is for checking if it is made by incucyte
                 incucyte = False
                 opera = False
+                imagexpress = False
                 for tag in tif.pages[0].tags:
-                    if 'PerkinElmer' in str(tag):
+                    tag_s = str(tag)
+                    if 'PerkinElmer' in tag_s:
                         opera = True
                         break
-                    if 'Revvity' in str(tag):
+                    if 'Revvity' in tag_s:
                         opera = True
                         break                             
-                    if 'Incucyte' in str(tag):
+                    if 'Incucyte' in tag_s:
                         incucyte=True
                         break
+                    if 'MetaSeries' in tag_s:
+                        imagexpress = True
+                        break                        
                 if I and 'tdata_meta_data' in I.keys():
                     allMeta['madeBy'] = 'multisesh'
                 elif I and 'tw_nt' in I.keys():
@@ -189,6 +203,8 @@ def allSeshMeta(tp,tps,customTags={},silenceWarnings=False):
                     incu_meta = tif.pages[-1].tags.values()[-1].value
                 elif opera:
                     allMeta['madeBy'] = 'Opera'
+                elif imagexpress:
+                    allMeta['madeBy'] = 'ImageXpress'               
                 elif m2:
                     allMeta['madeBy'] = 'MicroManager'
                     t = tif.pages[0].tags['MicroManagerMetadata'].value
@@ -907,6 +923,7 @@ def allSeshMeta(tp,tps,customTags={},silenceWarnings=False):
 
         allMeta['SessionN'] = -1 # only used for multisesh
 
+    elif allMeta['madeBy']=='ImageXpress':
         
     elif allMeta['madeBy']=='MicroManager':
         

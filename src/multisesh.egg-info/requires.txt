@@ -12,8 +12,8 @@ readlif
 fsspec
 ipywidgets
 ipympl
-basicpy==1.1
 btrack==0.6.5
 cellpose[gui]==3.1.1
 pandas
 pydantic==1.10.10
+scikit-learn
